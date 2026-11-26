@@ -1,0 +1,136 @@
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.1); defaults to v<plugin.json version>"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve plugin metadata & verify tag matches plugin.json
+        id: meta
+        run: |
+          PLUGIN_ID=$(jq -r '.id' plugin.json)
+          PLUGIN_VERSION=$(jq -r '.version' plugin.json)
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            TAG="${GITHUB_REF_NAME}"
+          elif [[ -n "${{ inputs.tag }}" ]]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="v${PLUGIN_VERSION}"
+          fi
+          TAG_VERSION="${TAG#v}"
+          if [[ "$TAG_VERSION" != "$PLUGIN_VERSION" ]]; then
+            echo "::error::Tag ${TAG} does not match plugin.json version ${PLUGIN_VERSION}"
+            exit 1
+          fi
+          echo "id=${PLUGIN_ID}" >> "$GITHUB_OUTPUT"
+          echo "version=${PLUGIN_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "archive=${PLUGIN_ID}-${PLUGIN_VERSION}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Verify signing secret & public certificate
+        env:
+          PLUGIN_SIGNING_KEY: ${{ secrets.PLUGIN_SIGNING_KEY }}
+        run: |
+          if [[ -z "$PLUGIN_SIGNING_KEY" ]]; then
+            echo "::error::Missing repository secret PLUGIN_SIGNING_KEY (contents of signing.key)"
+            exit 1
+          fi
+          if [[ ! -f plugin.signer || ! -f plugin.signer.minisig ]]; then
+            echo "::error::Missing plugin.signer or plugin.signer.minisig in repository root"
+            exit 1
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: webapp/pnpm-lock.yaml
+
+      - name: Go vet & unit tests
+        run: |
+          go vet ./...
+          go test -v -race ./...
+
+      - name: Webapp typecheck & build
+        run: |
+          pnpm --dir webapp install --frozen-lockfile
+          pnpm --dir webapp run typecheck
+          pnpm --dir webapp run build
+
+      - name: Build Go binaries
+        run: |
+          mkdir -p dist/linux-amd64 dist/linux-arm64 dist/darwin-arm64
+          CGO_ENABLED=0 GOOS=linux  GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/linux-amd64/fail2ban ./cmd/plugin
+          CGO_ENABLED=0 GOOS=linux  GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/linux-arm64/fail2ban ./cmd/plugin
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/darwin-arm64/fail2ban ./cmd/plugin
+
+      - name: Download nginx-ui CLI
+        run: |
+          curl -fsSL https://github.com/0xJacky/nginx-ui/releases/latest/download/nginx-ui-linux-64.tar.gz -o /tmp/nginx-ui.tar.gz
+          mkdir -p /tmp/nginx-ui-bin
+          tar -xzf /tmp/nginx-ui.tar.gz -C /tmp/nginx-ui-bin
+          chmod +x /tmp/nginx-ui-bin/nginx-ui
+
+      - name: Lint, conformance, pack & sign
+        env:
+          PLUGIN_SIGNING_KEY: ${{ secrets.PLUGIN_SIGNING_KEY }}
+          NGINX_UI_PLUGIN_SIGN_PASSWORD: ${{ secrets.PLUGIN_SIGNING_PASSWORD }}
+        run: |
+          STAGE=$(mktemp -d)
+          KEY_FILE=$(mktemp)
+          trap 'rm -rf "$STAGE" "$KEY_FILE"' EXIT
+
+          cp plugin.json README.md LICENSE plugin.signer plugin.signer.minisig "$STAGE/"
+          cp -R dist "$STAGE/dist"
+          mkdir -p "$STAGE/webapp"
+          cp -R webapp/dist "$STAGE/webapp/dist"
+
+          /tmp/nginx-ui-bin/nginx-ui plugin lint "$STAGE"
+          /tmp/nginx-ui-bin/nginx-ui plugin conformance "$STAGE" --transport both
+
+          chmod 600 "$KEY_FILE"
+          printf '%s\n' "$PLUGIN_SIGNING_KEY" > "$KEY_FILE"
+
+          ARCHIVE="${{ steps.meta.outputs.archive }}"
+          /tmp/nginx-ui-bin/nginx-ui plugin pack "$STAGE" "$ARCHIVE" --key "$KEY_FILE"
+          /tmp/nginx-ui-bin/nginx-ui plugin lint "$ARCHIVE"
+
+          sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
+          cat "${ARCHIVE}.sha256"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            ${{ steps.meta.outputs.archive }}
+            ${{ steps.meta.outputs.archive }}.sha256

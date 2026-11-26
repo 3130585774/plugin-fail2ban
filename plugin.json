@@ -3,7 +3,7 @@
   "name": "Fail2ban Guard",
   "version": "0.1.0",
   "api_version": 1,
-  "description": "Real-time Nginx access log intrusion detection and automated IP banning via debounced Nginx configuration snippets.",
+  "description": "Real-time intrusion detection and automatic IP banning for Nginx — blocks path scanners, sensitive path probes, brute-force attacks, and malicious bots with custom rules, whitelist protection, and auto-expiry.",
   "author": "Rustry",
   "license": "MIT",
   "server": {
@@ -64,7 +64,7 @@
   "i18n": {
     "zh_CN": {
       "name": "Fail2ban 防护",
-      "description": "基于 gRPC 实时访问日志流与防抖 Nginx 配置片段的自动入侵检测与 IP 封禁插件。",
+      "description": "实时监控 Nginx 访问日志，自动识别并封禁路径扫描、敏感探测、暴力破解与恶意爬虫 IP，支持自定义规则、白名单防误封与到期自动解封。",
       "permission_reasons": {
         "log.read": "实时接收 Nginx 访问日志流，用于检测 404 路径扫描、敏感路径探测、认证爆破与恶意扫描器。",
         "nginx.snippet": "通过防抖合并写入 Nginx deny 配置片段以执行 IP 封禁，并在到期后自动解封。",
