@@ -1,0 +1,77 @@
+{
+  "id": "io.github.3130585774.fail2ban",
+  "name": "Fail2ban Guard",
+  "version": "0.1.0",
+  "api_version": 1,
+  "description": "Real-time Nginx access log intrusion detection and automated IP banning via debounced Nginx configuration snippets.",
+  "author": "Rustry",
+  "license": "MIT",
+  "server": {
+    "executables": {
+      "linux-amd64": "dist/linux-amd64/fail2ban",
+      "linux-arm64": "dist/linux-arm64/fail2ban",
+      "darwin-arm64": "dist/darwin-arm64/fail2ban"
+    },
+    "lifecycle": "resident"
+  },
+  "capabilities": [
+    "log.sink",
+    "http"
+  ],
+  "http": {
+    "listen": "unix"
+  },
+  "log_sink": {
+    "batch_size": 512,
+    "flush_interval_ms": 500,
+    "formats": [
+      "combined"
+    ]
+  },
+  "permissions": [
+    "log.read",
+    "nginx.snippet",
+    "kv",
+    "notify",
+    "sites.read"
+  ],
+  "permission_reasons": {
+    "log.read": "Stream Nginx access logs in real time to detect 404 scanning, sensitive path probing, brute-force attacks, and malicious bots.",
+    "nginx.snippet": "Write and maintain debounced Nginx deny snippets to block detected malicious IPs and automatically remove expired bans.",
+    "kv": "Persist lightweight global plugin settings, debounce tuning, and whitelist metadata in the isolated plugin KV store.",
+    "notify": "Send warning and error alerts to the Nginx UI notification center on mass ban waves or Nginx snippet reload failures.",
+    "sites.read": "List managed Nginx sites to map access log paths to sites and provide guided snippet include instructions."
+  },
+  "events": [
+    "auth.login_failed",
+    "nginx.reloaded",
+    "nginx.reload_failed"
+  ],
+  "cron": [
+    {
+      "id": "expire-bans",
+      "schedule": "@every 1m",
+      "method": "fail2ban.expire"
+    }
+  ],
+  "webapp": {
+    "bundle_path": "webapp/dist/main.js",
+    "style_path": "webapp/dist/style.css",
+    "shared": {
+      "vue": ">=3.5.0 <4"
+    }
+  },
+  "i18n": {
+    "zh_CN": {
+      "name": "Fail2ban 防护",
+      "description": "基于 gRPC 实时访问日志流与防抖 Nginx 配置片段的自动入侵检测与 IP 封禁插件。",
+      "permission_reasons": {
+        "log.read": "实时接收 Nginx 访问日志流，用于检测 404 路径扫描、敏感路径探测、认证爆破与恶意扫描器。",
+        "nginx.snippet": "通过防抖合并写入 Nginx deny 配置片段以执行 IP 封禁，并在到期后自动解封。",
+        "kv": "在插件隔离 KV 存储中持久化全局开关、防抖参数与白名单摘要配置。",
+        "notify": "发生大规模封禁波动或 Nginx 重载失败时，向 Nginx UI 通知中心发送脱敏告警。",
+        "sites.read": "读取已托管站点列表以关联访问日志路径，并生成配置片段引入引导。"
+      }
+    }
+  }
+}

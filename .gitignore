@@ -1,0 +1,18 @@
+# Binaries & build artifacts
+dist/
+*.tar.gz
+*.sha256
+*.db
+*.db-wal
+*.db-shm
+http.sock
+
+# Node / Webapp
+webapp/node_modules/
+webapp/dist/
+
+# OS & Editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
