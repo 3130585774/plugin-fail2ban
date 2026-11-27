@@ -1,7 +1,7 @@
 {
   "id": "io.github.3130585774.fail2ban",
   "name": "Fail2ban Guard",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "api_version": 1,
   "icon": "webapp/dist/icon.svg",
   "description": "Real-time intrusion detection and automatic IP banning for Nginx — blocks path scanners, sensitive path probes, brute-force attacks, and malicious bots with custom rules, whitelist protection, and auto-expiry.",
@@ -15,20 +15,14 @@
     },
     "lifecycle": "resident"
   },
-  "capabilities": [
-    "log.sink",
-    "http",
-    "security.blocklist"
-  ],
+  "capabilities": ["log.sink", "http", "security.blocklist"],
   "http": {
     "listen": "unix"
   },
   "log_sink": {
     "batch_size": 512,
     "flush_interval_ms": 500,
-    "formats": [
-      "combined"
-    ]
+    "formats": ["combined"]
   },
   "blocklist": {
     "sources": [
@@ -66,11 +60,7 @@
     "sites.read": "List managed Nginx sites to map access log paths to sites and provide guided snippet include instructions.",
     "network": "Required by Nginx UI for the security.blocklist capability; Fail2ban Guard exports local active bans and does not make outbound network calls."
   },
-  "events": [
-    "auth.login_failed",
-    "nginx.reloaded",
-    "nginx.reload_failed"
-  ],
+  "events": ["auth.login_failed", "nginx.reloaded", "nginx.reload_failed"],
   "cron": [
     {
       "id": "expire-bans",
