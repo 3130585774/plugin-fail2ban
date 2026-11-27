@@ -4,7 +4,6 @@ import { setRegistry, startBackgroundSync, stopBackgroundSync } from './state'
 import Fail2banSettingsPanel from './views/Fail2banSettingsPanel.vue'
 import LogThreatView from './slots/LogThreatView.vue'
 import LogThreatColumn from './slots/LogThreatColumn.vue'
-import SiteLogAction from './slots/SiteLogAction.vue'
 
 export const PLUGIN_ID = 'io.github.3130585774.fail2ban'
 
@@ -33,10 +32,6 @@ registerPlugin(
         label: 'Threat Hits (24h)',
         order: 30,
         when: (ctx) => ctx.type === 'access',
-      })
-
-      registry.registerSlot('site.log.actions', SiteLogAction, {
-        order: 20,
       })
 
       startBackgroundSync()
