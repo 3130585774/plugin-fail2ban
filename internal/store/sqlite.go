@@ -156,10 +156,31 @@ func (s *Store) UpsertBan(ctx context.Context, rec BanRecord, recordRecidive boo
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// Automatic bans (recordRecidive == true) must never overwrite an active manual
+	// or permanent ban, nor inflate recidive_history for an IP already actively banned.
 	if recordRecidive {
+		var existing BanRecord
+		err := tx.QueryRowContext(ctx,
+			`SELECT ip, jail, reason, log_path, hit_count, offense_count, banned_at, expires_at, created_by
+			 FROM active_bans WHERE ip = ?`,
+			rec.IP,
+		).Scan(
+			&existing.IP, &existing.Jail, &existing.Reason, &existing.LogPath,
+			&existing.HitCount, &existing.OffenseCount, &existing.BannedAt,
+			&existing.ExpiresAt, &existing.CreatedBy,
+		)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return rec, BanEvent{}, err
+		}
+		if err == nil && (existing.ExpiresAt == 0 || existing.ExpiresAt > now) {
+			if existing.Jail == "manual" || existing.ExpiresAt == 0 || (rec.ExpiresAt > 0 && existing.ExpiresAt >= rec.ExpiresAt) {
+				return existing, BanEvent{}, nil
+			}
+		}
+
 		var prevCount int
 		var prevExpires int64
-		err := tx.QueryRowContext(ctx,
+		err = tx.QueryRowContext(ctx,
 			`SELECT offense_count, expires_at FROM recidive_history WHERE ip = ?`,
 			rec.IP,
 		).Scan(&prevCount, &prevExpires)
@@ -469,6 +490,11 @@ func (s *Store) ListActiveBanIPs(ctx context.Context) ([]string, error) {
 		ips = append(ips, ip)
 	}
 	return ips, rows.Err()
+}
+
+// ListAllActiveBans returns all currently active bans without any row limit.
+func (s *Store) ListAllActiveBans(ctx context.Context) ([]BanRecord, error) {
+	return s.ListActiveBansForBlocklist(ctx, "")
 }
 
 // ListActiveBansForBlocklist returns all currently active bans sorted by IP,

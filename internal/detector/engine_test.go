@@ -206,6 +206,171 @@ func TestEngineAsyncPushFastAck(t *testing.T) {
 	}
 }
 
+func TestReloadActiveCacheLoadsOver500Bans(t *testing.T) {
+	st, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = st.Close() }()
+
+	ctx := context.Background()
+	now := time.Now().Unix()
+	const totalBans = 650
+	for i := 0; i < totalBans; i++ {
+		ip := fmt.Sprintf("198.51.%d.%d", i/250, (i%250)+1)
+		if _, _, err := st.UpsertBan(ctx, store.BanRecord{
+			IP:        ip,
+			Jail:      "manual",
+			Reason:    "bulk seed",
+			BannedAt:  now,
+			ExpiresAt: 0, // permanent
+			CreatedBy: "admin",
+		}, false); err != nil {
+			t.Fatalf("seed ban %d: %v", i, err)
+		}
+	}
+
+	eng, err := NewEngine(st, &mockDirty{}, nil, store.DefaultGlobalConfig())
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	if len(eng.activeCache) != totalBans {
+		t.Fatalf("activeCache loaded %d entries, want all %d", len(eng.activeCache), totalBans)
+	}
+	if !eng.isProtectedOrBanned("198.51.2.150") {
+		t.Fatalf("expected ban #650 to be present in activeCache after restart")
+	}
+}
+
+func TestAutoBanNeverOverwritesManualOrPermanentBan(t *testing.T) {
+	st, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = st.Close() }()
+
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	// Seed a manual permanent ban and a manual temporary ban.
+	if _, _, err := st.UpsertBan(ctx, store.BanRecord{
+		IP:        "203.0.113.100",
+		Jail:      "manual",
+		Reason:    "manual permanent",
+		BannedAt:  now,
+		ExpiresAt: 0,
+		CreatedBy: "admin",
+	}, false); err != nil {
+		t.Fatalf("seed manual permanent: %v", err)
+	}
+	if _, _, err := st.UpsertBan(ctx, store.BanRecord{
+		IP:        "203.0.113.101",
+		Jail:      "manual",
+		Reason:    "manual temp",
+		BannedAt:  now,
+		ExpiresAt: now + 7200,
+		CreatedBy: "admin",
+	}, false); err != nil {
+		t.Fatalf("seed manual temp: %v", err)
+	}
+
+	eng, err := NewEngine(st, &mockDirty{}, nil, store.DefaultGlobalConfig())
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+
+	// Attempt automatic ban directly (simulating worst-case cache miss).
+	eng.triggerBan(ctx, "203.0.113.100", JailHTTP404Scan, "auto scan", "/var/log/nginx/access.log", 15, 3600, now)
+	eng.triggerBan(ctx, "203.0.113.101", JailHTTP404Scan, "auto scan", "/var/log/nginx/access.log", 15, 3600, now)
+
+	bans, err := st.ListAllActiveBans(ctx)
+	if err != nil {
+		t.Fatalf("ListAllActiveBans: %v", err)
+	}
+	byIP := make(map[string]store.BanRecord, len(bans))
+	for _, b := range bans {
+		byIP[b.IP] = b
+	}
+
+	if b := byIP["203.0.113.100"]; b.Jail != "manual" || b.ExpiresAt != 0 || b.OffenseCount != 1 {
+		t.Fatalf("manual permanent ban was mutated: %+v", b)
+	}
+	if b := byIP["203.0.113.101"]; b.Jail != "manual" || b.ExpiresAt != now+7200 || b.OffenseCount != 1 {
+		t.Fatalf("manual temporary ban was mutated: %+v", b)
+	}
+	if oc, _ := st.GetOffenseCount(ctx, "203.0.113.100", now); oc != 0 {
+		t.Fatalf("recidive_history should not be inflated for protected manual ban, got %d", oc)
+	}
+	if eng.Stats().BansTriggered != 0 {
+		t.Fatalf("BansTriggered = %d, want 0 when existing manual bans preserved", eng.Stats().BansTriggered)
+	}
+}
+
+func TestAuthBruteforceDisabledByDefaultAndScopedToLoginPaths(t *testing.T) {
+	st, err := store.Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = st.Close() }()
+
+	eng, err := NewEngine(st, &mockDirty{}, nil, store.DefaultGlobalConfig())
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+
+	var authJail store.JailConfig
+	for _, j := range eng.ListJails() {
+		if j.ID == JailHTTPAuthBruteforce {
+			authJail = j
+			break
+		}
+	}
+	if authJail.Enabled {
+		t.Fatalf("http-auth-bruteforce must be disabled by default")
+	}
+	if len(authJail.PathPrefixes) == 0 {
+		t.Fatalf("http-auth-bruteforce should have default login PathPrefixes")
+	}
+
+	// Enable the rule and verify normal 403 paths are ignored while /login 401 triggers ban.
+	authJail.Enabled = true
+	authJail.Threshold = 3
+	if _, err := eng.UpdateJail(context.Background(), authJail); err != nil {
+		t.Fatalf("UpdateJail: %v", err)
+	}
+
+	ctx := context.Background()
+	for i := 0; i < 5; i++ {
+		eng.processLogEntry(ctx, sdk.LogEntry{
+			LogPath: "/var/log/nginx/access.log",
+			LogEntry: protocol.LogEntry{
+				RemoteAddr:    "198.51.100.77",
+				Status:        403,
+				RequestMethod: "GET",
+				RequestURI:    "/private/report",
+			},
+		})
+	}
+	if eng.isProtectedOrBanned("198.51.100.77") {
+		t.Fatalf("non-login 403 path should not trigger http-auth-bruteforce")
+	}
+
+	for i := 0; i < 3; i++ {
+		eng.processLogEntry(ctx, sdk.LogEntry{
+			LogPath: "/var/log/nginx/access.log",
+			LogEntry: protocol.LogEntry{
+				RemoteAddr:    "198.51.100.78",
+				Status:        401,
+				RequestMethod: "POST",
+				RequestURI:    "/login",
+			},
+		})
+	}
+	if !eng.isProtectedOrBanned("198.51.100.78") {
+		t.Fatalf("expected /login 401 brute-force to trigger ban when enabled")
+	}
+}
+
 func BenchmarkDetector5000RPS(b *testing.B) {
 	st, err := store.Open(":memory:")
 	if err != nil {

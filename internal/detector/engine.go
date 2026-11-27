@@ -300,13 +300,18 @@ func (e *Engine) triggerBan(ctx context.Context, ip, jailID, reason, logPath str
 		CreatedBy: "system",
 	}
 
-	saved, _, err := e.store.UpsertBan(ctx, rec, true)
+	saved, ev, err := e.store.UpsertBan(ctx, rec, true)
 	if err != nil {
 		sdk.Errorf("fail2ban: failed to persist ban for jail %s: %v", jailID, err)
 		return
 	}
 
 	e.MarkBanned(saved.IP, saved.ExpiresAt)
+	// If UpsertBan preserved an existing manual/permanent/longer active ban,
+	// do not inflate counters or trigger duplicate notifications.
+	if ev.ID == 0 {
+		return
+	}
 	e.bansTriggered.Add(1)
 
 	// Privacy compliance: never log raw client IP, URL, Referer, or User-Agent.
@@ -436,9 +441,9 @@ func (e *Engine) WhitelistPrefixes() []netip.Prefix {
 	return out
 }
 
-// ReloadActiveCache reloads all active bans into the fast lookup map.
+// ReloadActiveCache reloads all active bans into the fast lookup map without a row limit.
 func (e *Engine) ReloadActiveCache(ctx context.Context) error {
-	bans, _, err := e.store.ListBans(ctx, store.BanQuery{Limit: 500})
+	bans, err := e.store.ListAllActiveBans(ctx)
 	if err != nil {
 		return err
 	}

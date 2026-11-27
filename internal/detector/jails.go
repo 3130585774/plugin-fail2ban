@@ -62,13 +62,23 @@ func DefaultJails() []store.JailConfig {
 		},
 		{
 			ID:             JailHTTPAuthBruteforce,
-			Name:           "Auth & API Brute Force",
-			Description:    "Detect repeated 401/403 authentication failures on login or API endpoints.",
-			Enabled:        true,
+			Name:           "Auth & Login Brute Force",
+			Description:    "Detect repeated 401/403 authentication failures on login/auth paths (disabled by default to avoid false positives).",
+			Enabled:        false,
 			Threshold:      10,
 			WindowSec:      180,
 			BanDurationSec: 1800, // 30m
 			StatusCodes:    []int{401, 403},
+			PathPrefixes: []string{
+				"/login",
+				"/signin",
+				"/auth",
+				"/api/login",
+				"/api/auth",
+				"/admin/login",
+				"/wp-login.php",
+				"/oauth",
+			},
 		},
 		{
 			ID:             JailHTTPBadBot,

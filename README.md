@@ -12,7 +12,7 @@ Monitor Nginx access logs and admin login failures, automatically block maliciou
   | --- | --- | --- |
   | `http-404-scan` | Detects rapid 404 scanning across distinct paths (ignores static assets) | `15 / 60s` → `1h` |
   | `http-sensitive-probe` | Blocks probes against `/.env`, `/.git/`, `/wp-login.php`, `/phpmyadmin`, etc. | `3 / 5m` → `24h` |
-  | `http-auth-bruteforce` | Blocks repeated `401` / `403` authentication failures | `10 / 3m` → `30m` |
+  | `http-auth-bruteforce` | Blocks repeated `401` / `403` failures on login/auth paths (`/login`, `/auth`, `/api/auth`, etc.; **disabled by default**) | `10 / 3m` → `30m` |
   | `http-bad-bot` | Blocks known vulnerability scanners (`sqlmap`, `nikto`, `zgrab`, `nuclei`, etc.) | `2 / 60s` → `24h` |
   | `nginxui-login-guard` | Protects Nginx UI admin login via `auth.login_failed` events | `5 / 10m` → `1h` |
   | `recidive-escalation` | Escalates repeat offenders over a 7-day rolling window | `1h → 24h → 7d` |
@@ -23,6 +23,24 @@ Monitor Nginx access logs and admin login failures, automatically block maliciou
 - **Anti-Lockout & Whitelist Protection** — Hardcoded protection for `127.0.0.0/8`, `::1`, `0.0.0.0/0`, `::/0` plus custom admin CIDR whitelists (adding a whitelist CIDR automatically unbans matching active IPs).
 - **Deep Nginx UI Integration** — Native Plugin Settings Drawer UI (narrow-drawer friendly card layout, Light/Dark theme sync, full `zh_CN` / `en` localization) plus access log **Threat Analysis** view & **Threat Hits (24h)** column.
 - **Low Memory & Crash-Safe** — Bounded 64-shard LRU tracker (`GOMEMLIMIT=100MiB`) and SQLite WAL persistence. Never logs raw client IPs, URLs, or User-Agents to stderr or host logs.
+
+## Reverse Proxy / CDN (`real_ip`) Notice
+
+If your Nginx instance sits behind a reverse proxy, load balancer, or CDN (such as Cloudflare, AWS ALB, or frp), **configure Nginx's `ngx_http_realip_module` before enabling Fail2ban Guard**. Otherwise Nginx access logs will record the proxy/CDN IP instead of the real visitor IP, which could cause Fail2ban Guard to ban your own proxy or CDN edge IP.
+
+Example (`http {}` block):
+
+```nginx
+# Trust only your reverse proxy / CDN IP ranges
+set_real_ip_from 10.0.0.0/8;
+set_real_ip_from 172.16.0.0/12;
+set_real_ip_from 192.168.0.0/16;
+# Use CF-Connecting-IP for Cloudflare, or X-Forwarded-For / X-Real-IP for standard proxies
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+```
+
+You should also add your proxy/management IP ranges to **Admin Whitelist** in the plugin settings.
 
 ## Supported platforms
 
