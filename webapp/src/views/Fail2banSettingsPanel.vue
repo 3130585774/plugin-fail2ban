@@ -53,8 +53,8 @@ onMounted(() => {
 
 <template>
   <div class="f2b-settings">
-    <div class="f2b-top-bar">
-      <div class="f2b-metrics-inline">
+    <div class="f2b-summary-card">
+      <div class="f2b-metrics-grid">
         <div class="f2b-stat">
           <span class="f2b-stat-label">{{ t('Active Bans') }}</span>
           <strong class="f2b-stat-val">{{ status?.active_bans ?? 0 }}</strong>
@@ -113,22 +113,20 @@ onMounted(() => {
 .f2b-settings {
   color: var(--ant-color-text, #1f2937);
 }
-.f2b-top-bar {
+.f2b-summary-card {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   gap: 12px;
   padding: 12px 14px;
   margin-bottom: 14px;
   border-radius: var(--ant-border-radius-lg, 8px);
-  background: var(--ant-color-fill-quaternary, rgba(0, 0, 0, 0.02));
+  background: var(--ant-color-fill-quaternary, rgba(255, 255, 255, 0.03));
   border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
 }
-.f2b-metrics-inline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
+.f2b-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 .f2b-stat {
   display: flex;
@@ -148,8 +146,10 @@ onMounted(() => {
 .f2b-top-actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ant-color-border-secondary, #f0f0f0);
 }
 .f2b-tabs {
   display: flex;
@@ -158,12 +158,12 @@ onMounted(() => {
   margin-bottom: 14px;
 }
 .f2b-tabs button {
-  padding: 8px 14px;
+  padding: 8px 12px;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ant-color-text-secondary, #6b7280);
   transition: color 0.15s ease, border-color 0.15s ease;
 }
@@ -186,7 +186,7 @@ onMounted(() => {
   color: var(--ant-color-text, #1f2937);
   cursor: pointer;
   font-size: 13px;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
 }
 .f2b-btn:hover:not(:disabled) {
   border-color: var(--ant-color-primary, #1677ff);

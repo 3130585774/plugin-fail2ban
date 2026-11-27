@@ -35,10 +35,10 @@ onMounted(() => {
 <template>
   <div>
     <p v-if="msg" class="f2b-msg">{{ msg }}</p>
-    <div class="f2b-jail-grid">
+    <div class="f2b-jail-list">
       <div v-for="j in jails" :key="j.id" class="f2b-jail-card">
         <div class="f2b-jail-head">
-          <div>
+          <div class="f2b-jail-title-wrap">
             <strong>{{ jailName(j.id, j.name) }}</strong>
             <span class="f2b-jail-id">{{ j.id }}</span>
           </div>
@@ -51,15 +51,15 @@ onMounted(() => {
 
         <div class="f2b-jail-fields">
           <label>
-            {{ t('Threshold') }}
+            <span>{{ t('Threshold') }}</span>
             <input v-model.number="j.threshold" type="number" min="1" class="f2b-input" />
           </label>
           <label>
-            {{ t('Window (sec)') }}
+            <span>{{ t('Window (sec)') }}</span>
             <input v-model.number="j.window_sec" type="number" min="1" class="f2b-input" />
           </label>
           <label>
-            {{ t('Ban Duration (sec)') }}
+            <span>{{ t('Ban Duration (sec)') }}</span>
             <input v-model.number="j.ban_duration_sec" type="number" min="0" class="f2b-input" />
           </label>
         </div>
@@ -78,12 +78,12 @@ onMounted(() => {
 .f2b-msg {
   font-size: 13px;
   color: var(--ant-color-primary, #1677ff);
-  margin: 0 0 12px;
+  margin: 0 0 10px;
 }
-.f2b-jail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 12px;
+.f2b-jail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .f2b-jail-card {
   border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
@@ -97,9 +97,14 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
 }
+.f2b-jail-title-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
 .f2b-jail-id {
-  display: inline-block;
-  margin-left: 8px;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--ant-color-text-tertiary, #9ca3af);
@@ -112,7 +117,7 @@ onMounted(() => {
 }
 .f2b-jail-fields {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 10px;
 }

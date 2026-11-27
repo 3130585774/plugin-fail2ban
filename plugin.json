@@ -1,9 +1,9 @@
 {
   "id": "io.github.3130585774.fail2ban",
   "name": "Fail2ban Guard",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "api_version": 1,
-  "icon": "webapp/dist/icon.svg",
+  "icon_path": "webapp/dist/icon.svg",
   "description": "Real-time intrusion detection and automatic IP banning for Nginx — blocks path scanners, sensitive path probes, brute-force attacks, and malicious bots with custom rules, whitelist protection, and auto-expiry.",
   "author": "Rustry",
   "license": "MIT",
