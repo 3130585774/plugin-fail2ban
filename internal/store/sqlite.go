@@ -471,6 +471,43 @@ func (s *Store) ListActiveBanIPs(ctx context.Context) ([]string, error) {
 	return ips, rows.Err()
 }
 
+// ListActiveBansForBlocklist returns all currently active bans sorted by IP,
+// optionally filtered by jail ID, for exporting via security.blocklist.
+func (s *Store) ListActiveBansForBlocklist(ctx context.Context, jail string) ([]BanRecord, error) {
+	now := NowUnix()
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if jail != "" {
+		rows, err = s.db.QueryContext(ctx,
+			`SELECT ip, jail, reason, log_path, hit_count, offense_count, banned_at, expires_at, created_by
+			 FROM active_bans WHERE (expires_at = 0 OR expires_at > ?) AND jail = ? ORDER BY ip ASC`,
+			now, jail,
+		)
+	} else {
+		rows, err = s.db.QueryContext(ctx,
+			`SELECT ip, jail, reason, log_path, hit_count, offense_count, banned_at, expires_at, created_by
+			 FROM active_bans WHERE expires_at = 0 OR expires_at > ? ORDER BY ip ASC`,
+			now,
+		)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]BanRecord, 0)
+	for rows.Next() {
+		var r BanRecord
+		if err := rows.Scan(&r.IP, &r.Jail, &r.Reason, &r.LogPath, &r.HitCount, &r.OffenseCount, &r.BannedAt, &r.ExpiresAt, &r.CreatedBy); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // ListBans returns filtered active bans and total matching count.
 func (s *Store) ListBans(ctx context.Context, q BanQuery) ([]BanRecord, int, error) {
 	if q.Limit <= 0 || q.Limit > 500 {

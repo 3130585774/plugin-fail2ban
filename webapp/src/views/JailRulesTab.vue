@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { jailDesc, jailName, t } from '../i18n'
 import { getRegistry } from '../state'
 import type { JailConfig } from '../types'
 
@@ -17,10 +18,10 @@ async function saveJail(jail: JailConfig) {
   msg.value = ''
   try {
     await getRegistry().http.put(`/jails/${encodeURIComponent(jail.id)}`, jail)
-    msg.value = `Saved ${jail.id}`
+    msg.value = t('Saved {id}', { id: jailName(jail.id, jail.name) })
     setTimeout(() => (msg.value = ''), 2500)
   } catch (err) {
-    msg.value = `Failed to save ${jail.id}: ${String(err)}`
+    msg.value = t('Failed to save {id}: {err}', { id: jail.id, err: String(err) })
   } finally {
     savingId.value = ''
   }
@@ -38,34 +39,34 @@ onMounted(() => {
       <div v-for="j in jails" :key="j.id" class="f2b-jail-card">
         <div class="f2b-jail-head">
           <div>
-            <strong>{{ j.name }}</strong>
+            <strong>{{ jailName(j.id, j.name) }}</strong>
             <span class="f2b-jail-id">{{ j.id }}</span>
           </div>
           <label class="f2b-switch">
             <input v-model="j.enabled" type="checkbox" @change="saveJail(j)" />
-            <span>{{ j.enabled ? 'Enabled' : 'Disabled' }}</span>
+            <span>{{ j.enabled ? t('Enabled') : t('Disabled') }}</span>
           </label>
         </div>
-        <p class="f2b-jail-desc">{{ j.description }}</p>
+        <p class="f2b-jail-desc">{{ jailDesc(j.id, j.description) }}</p>
 
         <div class="f2b-jail-fields">
           <label>
-            Threshold
+            {{ t('Threshold') }}
             <input v-model.number="j.threshold" type="number" min="1" class="f2b-input" />
           </label>
           <label>
-            Window (sec)
+            {{ t('Window (sec)') }}
             <input v-model.number="j.window_sec" type="number" min="1" class="f2b-input" />
           </label>
           <label>
-            Ban Duration (sec)
+            {{ t('Ban Duration (sec)') }}
             <input v-model.number="j.ban_duration_sec" type="number" min="0" class="f2b-input" />
           </label>
         </div>
 
         <div class="f2b-jail-foot">
           <button class="f2b-btn" :disabled="savingId === j.id" @click="saveJail(j)">
-            {{ savingId === j.id ? 'Saving...' : 'Save Rule' }}
+            {{ savingId === j.id ? t('Saving...') : t('Save Rule') }}
           </button>
         </div>
       </div>
@@ -81,13 +82,13 @@ onMounted(() => {
 }
 .f2b-jail-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
 }
 .f2b-jail-card {
   border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
   border-radius: var(--ant-border-radius-lg, 8px);
-  padding: 14px;
+  padding: 12px 14px;
   background: var(--ant-color-bg-elevated, var(--ant-color-bg-container, #ffffff));
 }
 .f2b-jail-head {
@@ -99,20 +100,21 @@ onMounted(() => {
 .f2b-jail-id {
   display: inline-block;
   margin-left: 8px;
-  font-size: 12px;
+  font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--ant-color-text-secondary, #6b7280);
+  color: var(--ant-color-text-tertiary, #9ca3af);
 }
 .f2b-jail-desc {
-  margin: 8px 0 12px;
-  font-size: 13px;
+  margin: 6px 0 10px;
+  font-size: 12px;
+  line-height: 1.5;
   color: var(--ant-color-text-secondary, #6b7280);
 }
 .f2b-jail-fields {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .f2b-jail-fields label {
   display: flex;
@@ -122,6 +124,8 @@ onMounted(() => {
   color: var(--ant-color-text-secondary, #6b7280);
 }
 .f2b-input {
+  width: 100%;
+  box-sizing: border-box;
   padding: 5px 8px;
   border-radius: var(--ant-border-radius, 6px);
   border: 1px solid var(--ant-color-border, #d9d9d9);
@@ -135,6 +139,7 @@ onMounted(() => {
   gap: 6px;
   font-size: 12px;
   cursor: pointer;
+  white-space: nowrap;
 }
 .f2b-jail-foot {
   display: flex;

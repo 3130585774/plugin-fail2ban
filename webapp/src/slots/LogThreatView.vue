@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import type { NginxLogViewContext } from '@nginxui/plugin-sdk'
+import { actionLabel, jailName, t } from '../i18n'
 import { formatUnixTime, getRegistry } from '../state'
 import type { BanEvent } from '../types'
 
@@ -26,9 +27,12 @@ async function loadLogEvents() {
   }
 }
 
-watch(() => props.context?.path ?? props.path, () => {
-  void loadLogEvents()
-})
+watch(
+  () => props.context?.path ?? props.path,
+  () => {
+    void loadLogEvents()
+  },
+)
 
 onMounted(() => {
   void loadLogEvents()
@@ -38,28 +42,28 @@ onMounted(() => {
 <template>
   <div class="f2b-slot-view">
     <div class="f2b-slot-head">
-      <strong>Fail2ban Threat Analysis</strong>
+      <strong>{{ t('Fail2ban Threat Analysis') }}</strong>
       <code class="f2b-path">{{ props.context?.path ?? props.path }}</code>
     </div>
     <p v-if="!loading && events.length === 0" class="f2b-empty">
-      No Fail2ban actions recorded for this access log.
+      {{ t('No Fail2ban actions recorded for this access log.') }}
     </p>
     <table v-else class="f2b-table">
       <thead>
         <tr>
-          <th>Time</th>
-          <th>Action</th>
-          <th>IP</th>
-          <th>Jail</th>
-          <th>Reason</th>
+          <th>{{ t('Time') }}</th>
+          <th>{{ t('Action') }}</th>
+          <th>{{ t('IP') }}</th>
+          <th>{{ t('Jail') }}</th>
+          <th>{{ t('Reason') }}</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="ev in events" :key="ev.id">
           <td>{{ formatUnixTime(ev.created_at) }}</td>
-          <td>{{ ev.action }}</td>
+          <td>{{ actionLabel(ev.action) }}</td>
           <td class="f2b-mono">{{ ev.ip }}</td>
-          <td>{{ ev.jail }}</td>
+          <td>{{ jailName(ev.jail) }}</td>
           <td>{{ ev.reason }}</td>
         </tr>
       </tbody>

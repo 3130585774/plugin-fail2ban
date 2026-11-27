@@ -1,8 +1,9 @@
 {
   "id": "io.github.3130585774.fail2ban",
   "name": "Fail2ban Guard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "api_version": 1,
+  "icon": "webapp/dist/icon.svg",
   "description": "Real-time intrusion detection and automatic IP banning for Nginx — blocks path scanners, sensitive path probes, brute-force attacks, and malicious bots with custom rules, whitelist protection, and auto-expiry.",
   "author": "Rustry",
   "license": "MIT",
@@ -16,7 +17,8 @@
   },
   "capabilities": [
     "log.sink",
-    "http"
+    "http",
+    "security.blocklist"
   ],
   "http": {
     "listen": "unix"
@@ -28,19 +30,41 @@
       "combined"
     ]
   },
+  "blocklist": {
+    "sources": [
+      {
+        "code": "fail2ban-active",
+        "name": "Fail2ban Active Bans",
+        "refresh_seconds": 60,
+        "configuration": {
+          "fields": [
+            {
+              "key": "jail",
+              "type": "text",
+              "display_name": "Jail Filter",
+              "help_text": "Optional jail ID (e.g. http-404-scan). Leave empty to include all active bans.",
+              "required": false
+            }
+          ]
+        }
+      }
+    ]
+  },
   "permissions": [
     "log.read",
     "nginx.snippet",
     "kv",
     "notify",
-    "sites.read"
+    "sites.read",
+    "network"
   ],
   "permission_reasons": {
     "log.read": "Stream Nginx access logs in real time to detect 404 scanning, sensitive path probing, brute-force attacks, and malicious bots.",
     "nginx.snippet": "Write and maintain debounced Nginx deny snippets to block detected malicious IPs and automatically remove expired bans.",
     "kv": "Persist lightweight global plugin settings, debounce tuning, and whitelist metadata in the isolated plugin KV store.",
     "notify": "Send warning and error alerts to the Nginx UI notification center on mass ban waves or Nginx snippet reload failures.",
-    "sites.read": "List managed Nginx sites to map access log paths to sites and provide guided snippet include instructions."
+    "sites.read": "List managed Nginx sites to map access log paths to sites and provide guided snippet include instructions.",
+    "network": "Required by Nginx UI for the security.blocklist capability; Fail2ban Guard exports local active bans and does not make outbound network calls."
   },
   "events": [
     "auth.login_failed",
@@ -70,7 +94,8 @@
         "nginx.snippet": "通过防抖合并写入 Nginx deny 配置片段以执行 IP 封禁，并在到期后自动解封。",
         "kv": "在插件隔离 KV 存储中持久化全局开关、防抖参数与白名单摘要配置。",
         "notify": "发生大规模封禁波动或 Nginx 重载失败时，向 Nginx UI 通知中心发送脱敏告警。",
-        "sites.read": "读取已托管站点列表以关联访问日志路径，并生成配置片段引入引导。"
+        "sites.read": "读取已托管站点列表以关联访问日志路径，并生成配置片段引入引导。",
+        "network": "Nginx UI 的 security.blocklist 能力要求声明此权限；本插件仅导出本地活跃封禁列表，不会主动发起外部网络请求。"
       }
     }
   }

@@ -1,7 +1,7 @@
 import { defineNginxUIPlugin, registerPlugin } from '@nginxui/plugin-sdk'
 import { enUS, zhCN } from './i18n'
 import { setRegistry, startBackgroundSync, stopBackgroundSync } from './state'
-import Fail2banConsole from './views/Fail2banConsole.vue'
+import Fail2banSettingsPanel from './views/Fail2banSettingsPanel.vue'
 import LogThreatView from './slots/LogThreatView.vue'
 import LogThreatColumn from './slots/LogThreatColumn.vue'
 import SiteLogAction from './slots/SiteLogAction.vue'
@@ -12,25 +12,16 @@ registerPlugin(
   PLUGIN_ID,
   defineNginxUIPlugin({
     setup(registry) {
-      // Idempotent setup: clear any prior timers/sockets before re-initializing.
+      // Idempotent setup: clear any prior timers before re-initializing.
       stopBackgroundSync()
       setRegistry(registry)
 
       registry.registerTranslations('zh_CN', zhCN)
       registry.registerTranslations('en', enUS)
 
-      registry.registerRoute(
-        {
-          path: 'fail2ban',
-          name: 'Fail2banGuard',
-          component: Fail2banConsole,
-          meta: {
-            title: 'Fail2ban Guard',
-            icon: 'SafetyCertificateOutlined',
-          },
-        },
-        { order: 45 },
-      )
+      // Integrate directly into Nginx UI's native Plugin Settings Drawer
+      // instead of adding a redundant standalone sidebar menu entry.
+      registry.registerSettingsPanel(Fail2banSettingsPanel)
 
       registry.registerSlot('nginx_log.view:fail2ban', LogThreatView, {
         label: 'Threat Analysis',

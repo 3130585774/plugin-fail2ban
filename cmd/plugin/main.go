@@ -138,6 +138,9 @@ func main() {
 	}
 
 	apiSrv := api.NewServer(st, eng, enf, hub, host)
+	blocklistFeed := enforcer.NewBlocklistFeed(st, func() []netip.Prefix {
+		return eng.WhitelistPrefixes()
+	})
 
 	enf.Start()
 	eng.Start()
@@ -162,8 +165,9 @@ func main() {
 	}()
 
 	sdk.Serve(sdk.Plugin{
-		HTTP:    apiSrv.Handler(),
-		LogSink: eng,
+		HTTP:      apiSrv.Handler(),
+		LogSink:   eng,
+		Blocklist: blocklistFeed,
 		Events: map[string]sdk.EventHandler{
 			protocol.EventAuthLoginFailed: func(ctx context.Context, ev protocol.EventNotification) {
 				if ip := extractIPFromEvent(ev.Data); ip != "" {
