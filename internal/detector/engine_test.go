@@ -63,7 +63,7 @@ func TestEngineJailsAndRecidive(t *testing.T) {
 	defer func() { _ = st.Close() }()
 
 	dirty := &mockDirty{}
-	eng, err := NewEngine(st, dirty, nil, nil, store.DefaultGlobalConfig())
+	eng, err := NewEngine(st, dirty, nil, store.DefaultGlobalConfig())
 	if err != nil {
 		t.Fatalf("NewEngine: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestEngineAsyncPushFastAck(t *testing.T) {
 	}
 	defer func() { _ = st.Close() }()
 
-	eng, err := NewEngine(st, &mockDirty{}, nil, nil, store.DefaultGlobalConfig())
+	eng, err := NewEngine(st, &mockDirty{}, nil, store.DefaultGlobalConfig())
 	if err != nil {
 		t.Fatalf("NewEngine: %v", err)
 	}
@@ -213,7 +213,7 @@ func BenchmarkDetector5000RPS(b *testing.B) {
 	}
 	defer func() { _ = st.Close() }()
 
-	eng, err := NewEngine(st, &mockDirty{}, nil, nil, store.DefaultGlobalConfig())
+	eng, err := NewEngine(st, &mockDirty{}, nil, store.DefaultGlobalConfig())
 	if err != nil {
 		b.Fatalf("NewEngine: %v", err)
 	}

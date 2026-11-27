@@ -20,11 +20,6 @@ type DirtyNotifier interface {
 	MarkDirty()
 }
 
-// EventBroadcaster publishes ban/unban events to WebSocket clients.
-type EventBroadcaster interface {
-	Broadcast(ev store.BanEvent)
-}
-
 // HostNotifier sends aggregate alerts (never raw PII) to the Nginx UI notification center.
 type HostNotifier interface {
 	Ready() bool
@@ -46,10 +41,9 @@ type EngineStats struct {
 
 // Engine consumes Nginx access log streams asynchronously and triggers bans.
 type Engine struct {
-	store       *store.Store
-	enforcer    DirtyNotifier
-	broadcaster EventBroadcaster
-	notifier    HostNotifier
+	store    *store.Store
+	enforcer DirtyNotifier
+	notifier HostNotifier
 
 	window *ShardedWindow
 	queue  chan sdk.LogEntry
@@ -80,7 +74,6 @@ type Engine struct {
 func NewEngine(
 	st *store.Store,
 	enf DirtyNotifier,
-	bc EventBroadcaster,
 	notif HostNotifier,
 	globalCfg store.GlobalConfig,
 ) (*Engine, error) {
@@ -91,7 +84,6 @@ func NewEngine(
 	e := &Engine{
 		store:       st,
 		enforcer:    enf,
-		broadcaster: bc,
 		notifier:    notif,
 		window:      NewShardedWindow(globalCfg.MaxTrackedIPs),
 		queue:       make(chan sdk.LogEntry, defaultQueueCapacity),
@@ -308,7 +300,7 @@ func (e *Engine) triggerBan(ctx context.Context, ip, jailID, reason, logPath str
 		CreatedBy: "system",
 	}
 
-	saved, ev, err := e.store.UpsertBan(ctx, rec, true)
+	saved, _, err := e.store.UpsertBan(ctx, rec, true)
 	if err != nil {
 		sdk.Errorf("fail2ban: failed to persist ban for jail %s: %v", jailID, err)
 		return
@@ -322,9 +314,6 @@ func (e *Engine) triggerBan(ctx context.Context, ip, jailID, reason, logPath str
 
 	if e.enforcer != nil {
 		e.enforcer.MarkDirty()
-	}
-	if e.broadcaster != nil {
-		e.broadcaster.Broadcast(ev)
 	}
 	e.checkWaveNotification(ctx, jailID, nowSec)
 }
@@ -563,7 +552,7 @@ func ParseCIDROrIP(raw string) (netip.Prefix, bool) {
 	return netip.Prefix{}, false
 }
 
-// ExpireAndSync removes expired bans from SQLite, updates cache, broadcasts events, and marks enforcer dirty.
+// ExpireAndSync removes expired bans from SQLite, updates cache, and marks enforcer dirty.
 func (e *Engine) ExpireAndSync(ctx context.Context) (int, error) {
 	events, err := e.store.ExpireBans(ctx, time.Now().UTC().Unix())
 	if err != nil {
@@ -574,9 +563,6 @@ func (e *Engine) ExpireAndSync(ctx context.Context) (int, error) {
 	}
 	for _, ev := range events {
 		e.MarkUnbanned(ev.IP)
-		if e.broadcaster != nil {
-			e.broadcaster.Broadcast(ev)
-		}
 	}
 	if e.enforcer != nil {
 		e.enforcer.MarkDirty()

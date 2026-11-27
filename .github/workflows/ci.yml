@@ -36,19 +36,6 @@ jobs:
           go vet ./...
           go test -v -race ./...
 
-      - name: Webapp typecheck & build
-        run: |
-          pnpm --dir webapp install --frozen-lockfile
-          pnpm --dir webapp run typecheck
-          pnpm --dir webapp run build
-
-      - name: Build Go binaries
-        run: |
-          mkdir -p dist/linux-amd64 dist/linux-arm64 dist/darwin-arm64
-          CGO_ENABLED=0 GOOS=linux  GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/linux-amd64/fail2ban ./cmd/plugin
-          CGO_ENABLED=0 GOOS=linux  GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/linux-arm64/fail2ban ./cmd/plugin
-          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/darwin-arm64/fail2ban ./cmd/plugin
-
       - name: Download nginx-ui CLI
         run: |
           curl -fsSL https://github.com/0xJacky/nginx-ui/releases/latest/download/nginx-ui-linux-64.tar.gz -o /tmp/nginx-ui.tar.gz
@@ -56,14 +43,5 @@ jobs:
           tar -xzf /tmp/nginx-ui.tar.gz -C /tmp/nginx-ui-bin
           chmod +x /tmp/nginx-ui-bin/nginx-ui
 
-      - name: Run plugin lint & conformance
-        run: |
-          STAGE=$(mktemp -d)
-          trap 'rm -rf "$STAGE"' EXIT
-          cp plugin.json README.md LICENSE plugin.signer plugin.signer.minisig "$STAGE/"
-          cp -R dist "$STAGE/dist"
-          mkdir -p "$STAGE/webapp"
-          cp -R webapp/dist "$STAGE/webapp/dist"
-
-          /tmp/nginx-ui-bin/nginx-ui plugin lint "$STAGE"
-          /tmp/nginx-ui-bin/nginx-ui plugin conformance "$STAGE" --transport both
+      - name: Build, lint, conformance & pack
+        run: ./build.sh --conformance --no-sign --nginx-ui /tmp/nginx-ui-bin/nginx-ui

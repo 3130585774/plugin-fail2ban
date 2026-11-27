@@ -113,7 +113,6 @@ func main() {
 	}
 
 	globalCfg := store.DefaultGlobalConfig()
-	hub := api.NewHub()
 
 	var eng *detector.Engine
 	enf := enforcer.NewSnippetEnforcer(
@@ -130,14 +129,14 @@ func main() {
 		time.Duration(globalCfg.MaxWaitSec)*time.Second,
 	)
 
-	eng, err = detector.NewEngine(st, enf, hub, host, globalCfg)
+	eng, err = detector.NewEngine(st, enf, host, globalCfg)
 	if err != nil {
 		sdk.Errorf("fail2ban: failed to initialize detector engine: %v", err)
 		_ = st.Close()
 		os.Exit(1)
 	}
 
-	apiSrv := api.NewServer(st, eng, enf, hub, host)
+	apiSrv := api.NewServer(st, eng, enf, host)
 	blocklistFeed := enforcer.NewBlocklistFeed(st, func() []netip.Prefix {
 		return eng.WhitelistPrefixes()
 	})
@@ -198,7 +197,6 @@ func main() {
 			flushCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 			defer cancel()
 			enf.Stop(flushCtx)
-			hub.Close()
 			return st.Close()
 		},
 	})

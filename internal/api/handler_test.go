@@ -39,15 +39,13 @@ func TestAPIRESTEndpoints(t *testing.T) {
 	defer func() { _ = st.Close() }()
 
 	host := stubHost{}
-	hub := NewHub()
-	defer hub.Close()
 
 	enf := enforcer.NewSnippetEnforcer(st, host, nil, "io.github.3130585774.fail2ban", time.Second, 3*time.Second)
-	eng, err := detector.NewEngine(st, enf, hub, host, store.DefaultGlobalConfig())
+	eng, err := detector.NewEngine(st, enf, host, store.DefaultGlobalConfig())
 	if err != nil {
 		t.Fatalf("NewEngine: %v", err)
 	}
-	srv := NewServer(st, eng, enf, hub, host)
+	srv := NewServer(st, eng, enf, host)
 
 	// 1. Create manual ban.
 	body := bytes.NewBufferString(`{"ip":"203.0.113.55","reason":"test ban","duration_sec":3600}`)

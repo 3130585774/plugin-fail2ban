@@ -27,12 +27,11 @@ type HostBridge interface {
 	SitesList(ctx context.Context) ([]protocol.HostSite, error)
 }
 
-// Server exposes the plugin's REST and WebSocket endpoints on the Unix socket.
+// Server exposes the plugin's REST endpoints on the Unix socket.
 type Server struct {
 	store    *store.Store
 	engine   *detector.Engine
 	enforcer *enforcer.SnippetEnforcer
-	hub      *Hub
 	host     HostBridge
 	mux      *http.ServeMux
 }
@@ -42,14 +41,12 @@ func NewServer(
 	st *store.Store,
 	eng *detector.Engine,
 	enf *enforcer.SnippetEnforcer,
-	hub *Hub,
 	host HostBridge,
 ) *Server {
 	s := &Server{
 		store:    st,
 		engine:   eng,
 		enforcer: enf,
-		hub:      hub,
 		host:     host,
 		mux:      http.NewServeMux(),
 	}
@@ -80,7 +77,6 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("DELETE /whitelist", s.handleDeleteWhitelist)
 
 	s.mux.HandleFunc("GET /events/history", s.handleListEvents)
-	s.mux.HandleFunc("GET /events", s.hub.ServeWS)
 
 	s.mux.HandleFunc("GET /snippet/guide", s.handleSnippetGuide)
 }
@@ -235,7 +231,7 @@ func (s *Server) handleCreateBan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	actor := actorFromRequest(r)
-	rec, ev, err := s.store.UpsertBan(r.Context(), store.BanRecord{
+	rec, _, err := s.store.UpsertBan(r.Context(), store.BanRecord{
 		IP:        ipStr,
 		Jail:      "manual",
 		Reason:    reason,
@@ -252,7 +248,6 @@ func (s *Server) handleCreateBan(w http.ResponseWriter, r *http.Request) {
 
 	s.engine.MarkBanned(rec.IP, rec.ExpiresAt)
 	s.enforcer.MarkDirty()
-	s.hub.Broadcast(ev)
 	sdk.Infof("fail2ban: manual ban added by %s", actor)
 
 	writeJSON(w, http.StatusCreated, rec)
@@ -276,7 +271,7 @@ func (s *Server) handleDeleteBan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	actor := actorFromRequest(r)
-	removed, ev, err := s.store.RemoveBan(r.Context(), ipStr, actor, "unban", "manual unban")
+	removed, _, err := s.store.RemoveBan(r.Context(), ipStr, actor, "unban", "manual unban")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -288,7 +283,6 @@ func (s *Server) handleDeleteBan(w http.ResponseWriter, r *http.Request) {
 
 	s.engine.MarkUnbanned(ipStr)
 	s.enforcer.MarkDirty()
-	s.hub.Broadcast(ev)
 	sdk.Infof("fail2ban: manual unban performed by %s", actor)
 
 	writeJSON(w, http.StatusOK, map[string]any{"removed": true, "ip": ipStr})
@@ -311,7 +305,7 @@ func (s *Server) handleExtendBan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	actor := actorFromRequest(r)
-	rec, ev, found, err := s.store.ExtendBan(r.Context(), ipStr, req.ExtraSec, actor)
+	rec, _, found, err := s.store.ExtendBan(r.Context(), ipStr, req.ExtraSec, actor)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -322,7 +316,6 @@ func (s *Server) handleExtendBan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.engine.MarkBanned(rec.IP, rec.ExpiresAt)
-	s.hub.Broadcast(ev)
 	sdk.Infof("fail2ban: ban extended by %s", actor)
 	writeJSON(w, http.StatusOK, rec)
 }
@@ -399,9 +392,8 @@ func (s *Server) handleAddWhitelist(w http.ResponseWriter, r *http.Request) {
 	if activeIPs, err := s.store.ListActiveBanIPs(r.Context()); err == nil {
 		for _, ip := range activeIPs {
 			if addr, err := netip.ParseAddr(ip); err == nil && pref.Contains(addr.Unmap()) {
-				if removed, ev, err := s.store.RemoveBan(r.Context(), ip, actor, "whitelist_unban", "covered by new whitelist entry"); err == nil && removed {
+				if removed, _, err := s.store.RemoveBan(r.Context(), ip, actor, "whitelist_unban", "covered by new whitelist entry"); err == nil && removed {
 					s.engine.MarkUnbanned(ip)
-					s.hub.Broadcast(ev)
 					unbannedCount++
 				}
 			}
